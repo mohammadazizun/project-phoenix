@@ -1,6 +1,35 @@
 import React, { useState } from 'react';
 import { CRMContact, BusinessEvent, TenantContext } from '../types';
-import { Users, Plus, Building2, Phone, Mail, DollarSign, Calendar, MessageSquare } from 'lucide-react';
+import { useCustomers } from '../hooks/useCustomers';
+import { CustomerTable } from './customer/CustomerTable';
+import { CustomerFormDialog } from './customer/CustomerFormDialog';
+import { CustomerDetailDrawer } from './customer/CustomerDetailDrawer';
+import { CustomerDeleteConfirmation } from './customer/CustomerDeleteConfirmation';
+import { CustomerFormData } from '../services/customerValidation';
+import { customerImportExportSchema } from '../services/customerImportExportSchema';
+import { ImportWizardModal } from './importExport/ImportWizardModal';
+import { ExportOptionsModal } from './importExport/ExportOptionsModal';
+import { ImportHistoryModal } from './importExport/ImportHistoryModal';
+import { Timeline } from './timeline/Timeline';
+import { ReceivableWidget } from './receivables/ReceivableWidget';
+import {
+  Users,
+  Plus,
+  Building2,
+  List,
+  Kanban,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
+  Edit3,
+  Trash2,
+  UserCheck,
+  Upload,
+  Download,
+  History,
+  Activity,
+  Receipt,
+} from 'lucide-react';
 
 interface CrmCapabilityProps {
   tenant: TenantContext;
@@ -11,60 +40,91 @@ interface CrmCapabilityProps {
 
 export const CrmCapability: React.FC<CrmCapabilityProps> = ({
   tenant,
-  contacts,
+  contacts: initialContacts,
   onAddContact,
   onEmitEvent,
 }) => {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [dealValue, setDealValue] = useState(50000);
-  const [stage, setStage] = useState<CRMContact['stage']>('Lead');
-  const [notes, setNotes] = useState('');
+  const [viewMode, setViewMode] = useState<'pipeline' | 'table' | 'timeline' | 'receivables'>('table');
 
-  const handleCreateContact = () => {
-    if (!name || !company) return;
+  // Customer state & CRUD operations via enterprise hook
+  const {
+    contacts,
+    loading,
+    error,
+    addCustomer,
+    updateCustomer,
+    deleteCustomer,
+    bulkImportCustomers,
+  } = useCustomers(tenant, initialContacts, onEmitEvent);
 
-    const contactId = `crm_${Date.now()}`;
-    const now = new Date();
-    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // Dialog State
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<CRMContact | null>(null);
 
-    const newContact: CRMContact = {
-      id: contactId,
-      name,
-      company,
-      email: email || `${name.toLowerCase().replace(/\s+/g, '.')}@${company.toLowerCase().replace(/\s+/g, '')}.com`,
-      phone: phone || '+1 (555) 019-2831',
-      stage,
-      dealValue,
-      lastInteraction: formattedDate,
-      notes: notes || 'New lead added via CRM Capability.',
-    };
+  // Drawer State
+  const [detailCustomer, setDetailCustomer] = useState<CRMContact | null>(null);
 
-    onAddContact(newContact);
+  // Delete Confirmation State
+  const [deletingCustomer, setDeletingCustomer] = useState<CRMContact | null>(null);
 
-    // Emit event
-    const event: BusinessEvent = {
-      id: `evt_crm_${Date.now()}`,
-      eventType: 'crm.lead_created',
-      timestamp: now.toISOString(),
-      sourceCapability: 'cap_crm',
-      tenantId: tenant.organizationId,
-      entityLocation: tenant.locationName,
-      payload: { contactId, name, company, dealValue, stage },
-      correlationId: `corr_crm_${Date.now()}`,
-      status: 'processed',
-    };
-    onEmitEvent(event);
+  // Import / Export Engine Modal States
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-    setShowAddModal(false);
-    setName('');
-    setCompany('');
+  // Success Notification banner
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const showNotification = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 4000);
   };
 
-  const stages: CRMContact['stage'][] = ['Lead', 'Contacted', 'Proposal Sent', 'Negotiation', 'Customer'];
+  const handleOpenCreate = () => {
+    setEditingCustomer(null);
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEdit = (customer: CRMContact) => {
+    setEditingCustomer(customer);
+    setIsFormOpen(true);
+  };
+
+  const handleFormSubmit = async (
+    formData: CustomerFormData
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (editingCustomer) {
+      const res = await updateCustomer(editingCustomer.id, formData);
+      if (res.success) {
+        showNotification(`Successfully updated customer ${formData.name}.`);
+      }
+      return res;
+    } else {
+      const res = await addCustomer(formData);
+      if (res.success) {
+        showNotification(`Successfully registered customer ${formData.name}.`);
+      }
+      return res;
+    }
+  };
+
+  const handleDeleteConfirm = async (
+    id: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const res = await deleteCustomer(id);
+    if (res.success) {
+      showNotification('Customer record marked as inactive (Soft Delete).');
+    }
+    return res;
+  };
+
+  const stages: CRMContact['stage'][] = [
+    'Lead',
+    'Contacted',
+    'Proposal Sent',
+    'Negotiation',
+    'Customer',
+  ];
 
   return (
     <div className="space-y-6">
@@ -75,160 +135,283 @@ export const CrmCapability: React.FC<CrmCapabilityProps> = ({
             <span className="p-1.5 rounded-md bg-indigo-600 text-white">
               <Users className="w-4 h-4" />
             </span>
-            <h2 className="text-lg font-bold text-white">CRM & Customer Pipeline Capability</h2>
+            <h2 className="text-lg font-bold text-white">CRM & Customer Management</h2>
             <span className="px-2 py-0.5 text-[10px] font-mono bg-slate-800 text-slate-300 rounded border border-slate-700">
-              cap_crm v1.5.0
+              cap_crm v2.0.0 Repository-Aware
             </span>
           </div>
           <p className="text-xs text-slate-300">
-            Account tiering & enterprise pipeline management. Emits <code className="text-indigo-400 font-bold">crm.lead_created</code> & <code className="text-indigo-400 font-bold">crm.deal_won</code> events.
+            Enterprise customer database with Repository Pattern, soft delete, and organization isolation for{' '}
+            <strong className="text-indigo-400 font-bold">{tenant.organizationName}</strong>.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-md shadow-sm transition-all cursor-pointer uppercase tracking-tight shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Account Lead</span>
-        </button>
-      </div>
-
-      {/* Pipeline Stage Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-        {stages.map((stg) => {
-          const stageContacts = contacts.filter((c) => c.stage === stg);
-          const stageTotalVal = stageContacts.reduce((sum, c) => sum + c.dealValue, 0);
-
-          return (
-            <div key={stg} className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col space-y-3 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs font-bold uppercase text-slate-800 tracking-wider">{stg}</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700">
-                  {stageContacts.length}
-                </span>
-              </div>
-              <div className="text-[11px] font-mono font-bold text-slate-500">
-                ${stageTotalVal.toLocaleString()}
-              </div>
-
-              <div className="space-y-2 flex-1 overflow-y-auto max-h-96 pr-1">
-                {stageContacts.map((c) => (
-                  <div
-                    key={c.id}
-                    className="p-3 rounded-md bg-slate-50 border border-slate-200 hover:border-indigo-300 transition-colors space-y-1.5"
-                  >
-                    <div className="font-bold text-xs text-slate-900">{c.name}</div>
-                    <div className="flex items-center gap-1 text-[11px] text-slate-600 font-medium">
-                      <Building2 className="w-3 h-3 text-slate-400" />
-                      <span>{c.company}</span>
-                    </div>
-                    <div className="text-xs font-mono font-bold text-indigo-700">
-                      ${c.dealValue.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] text-slate-500 line-clamp-2">{c.notes}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Add Lead Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-purple-400" />
-                <span>Add Enterprise Lead to CRM Pipeline</span>
-              </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white font-bold">
-                ✕
-              </button>
-            </div>
-
-            <div className="text-xs space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Contact Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dr. Aris Thorne"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Company / Organization</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Cyberdyne Labs"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Pipeline Stage</label>
-                  <select
-                    value={stage}
-                    onChange={(e) => setStage(e.target.value as any)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 cursor-pointer"
-                  >
-                    {stages.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Deal Estimate ($ USD)</label>
-                  <input
-                    type="number"
-                    value={dealValue}
-                    onChange={(e) => setDealValue(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-400 font-semibold mb-1">Interaction Notes</label>
-                <textarea
-                  rows={3}
-                  placeholder="Key details about this deal prospect..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 text-xs font-bold">
+        <div className="flex items-center gap-3 shrink-0">
+          {/* View Toggle & Engine Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
               <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 cursor-pointer"
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                Cancel
+                <List className="w-3.5 h-3.5" />
+                <span>Table</span>
               </button>
               <button
-                onClick={handleCreateContact}
-                disabled={!name || !company}
-                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 disabled:opacity-50 text-white rounded-lg hover:from-purple-400 cursor-pointer"
+                onClick={() => setViewMode('pipeline')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+                  viewMode === 'pipeline'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                Create Lead & Emit Event
+                <Kanban className="w-3.5 h-3.5" />
+                <span>Pipeline</span>
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+                  viewMode === 'timeline'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Timeline</span>
+              </button>
+              <button
+                onClick={() => setViewMode('receivables')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+                  viewMode === 'receivables'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Receivables</span>
               </button>
             </div>
+
+            {/* Import Button */}
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
+              title="Import Customers via Engine"
+            >
+              <Upload className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Import</span>
+            </button>
+
+            {/* Export Button */}
+            <button
+              onClick={() => setIsExportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
+              title="Export Customers via Engine"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Export</span>
+            </button>
+
+            {/* History Button */}
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all cursor-pointer"
+              title="Import/Export History Audit"
+            >
+              <History className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg shadow-md transition-all cursor-pointer uppercase tracking-tight shrink-0 ml-1"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Customer</span>
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Success Banner */}
+      {successMsg && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-3.5 rounded-xl text-xs flex items-center gap-2 shadow-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-medium">{successMsg}</span>
+        </div>
       )}
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3.5 rounded-xl text-xs flex items-center gap-2 shadow-sm">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span className="font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      {viewMode === 'table' ? (
+        <CustomerTable
+          customers={contacts}
+          loading={loading}
+          onViewDetail={(c) => setDetailCustomer(c)}
+          onEdit={handleOpenEdit}
+          onDelete={(c) => setDeletingCustomer(c)}
+        />
+      ) : viewMode === 'timeline' ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <Timeline
+            organizationId={tenant.organizationId}
+            entityType="Customer"
+            maxHeight="max-h-[550px]"
+          />
+        </div>
+      ) : viewMode === 'receivables' ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <ReceivableWidget tenant={tenant} />
+        </div>
+      ) : (
+        /* Pipeline Kanban View */
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {stages.map((stg) => {
+            const stageContacts = contacts.filter((c) => c.stage === stg);
+            const stageTotalVal = stageContacts.reduce((sum, c) => sum + c.dealValue, 0);
+
+            return (
+              <div
+                key={stg}
+                className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col space-y-3 shadow-sm"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-bold uppercase text-slate-800 tracking-wider">
+                    {stg}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700">
+                    {stageContacts.length}
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono font-bold text-slate-500">
+                  ${stageTotalVal.toLocaleString()}
+                </div>
+
+                <div className="space-y-2 flex-1 overflow-y-auto max-h-96 pr-1">
+                  {stageContacts.length === 0 ? (
+                    <div className="text-center py-6 text-[11px] text-slate-400 italic">
+                      No prospects in {stg}
+                    </div>
+                  ) : (
+                    stageContacts.map((c) => (
+                      <div
+                        key={c.id}
+                        className="p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-indigo-300 transition-all space-y-2 group shadow-2xs"
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-slate-200 text-slate-700">
+                            {c.customerCode || 'CUST-000'}
+                          </span>
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => setDetailCustomer(c)}
+                              title="View Details"
+                              className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-200"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEdit(c)}
+                              title="Edit Customer"
+                              className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingCustomer(c)}
+                              title="Delete Customer"
+                              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="font-bold text-xs text-slate-900">{c.name}</div>
+                        <div className="flex items-center gap-1 text-[11px] text-slate-600 font-medium">
+                          <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{c.company || 'N/A'}</span>
+                        </div>
+
+                        <div className="text-xs font-mono font-bold text-indigo-700">
+                          ${c.dealValue.toLocaleString()}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Customer Form Dialog (Create / Edit) */}
+      <CustomerFormDialog
+        isOpen={isFormOpen}
+        customer={editingCustomer}
+        onClose={() => setIsFormOpen(false)}
+        onSubmit={handleFormSubmit}
+      />
+
+      {/* Customer Detail Drawer */}
+      <CustomerDetailDrawer
+        isOpen={Boolean(detailCustomer)}
+        customer={detailCustomer}
+        onClose={() => setDetailCustomer(null)}
+        onEdit={(c) => {
+          setDetailCustomer(null);
+          handleOpenEdit(c);
+        }}
+      />
+
+      {/* Customer Delete Confirmation Dialog */}
+      <CustomerDeleteConfirmation
+        isOpen={Boolean(deletingCustomer)}
+        customer={deletingCustomer}
+        onClose={() => setDeletingCustomer(null)}
+        onConfirmDelete={handleDeleteConfirm}
+      />
+
+      {/* Reusable Import Engine Wizard Modal */}
+      <ImportWizardModal
+        isOpen={isImportOpen}
+        schema={customerImportExportSchema}
+        existingRecords={contacts}
+        organizationId={tenant.organizationId}
+        onClose={() => setIsImportOpen(false)}
+        onPersist={(candidates) => bulkImportCustomers(candidates)}
+        onSuccessComplete={(count) => {
+          showNotification(`Engine successfully imported ${count} new customer records!`);
+        }}
+      />
+
+      {/* Reusable Export Engine Options Modal */}
+      <ExportOptionsModal
+        isOpen={isExportOpen}
+        schema={customerImportExportSchema}
+        records={contacts}
+        organizationName={tenant.organizationName}
+        onClose={() => setIsExportOpen(false)}
+        onSuccessNotification={(msg) => showNotification(msg)}
+      />
+
+      {/* Import / Export History Log Modal */}
+      <ImportHistoryModal
+        isOpen={isHistoryOpen}
+        moduleName="Customer"
+        onClose={() => setIsHistoryOpen(false)}
+      />
     </div>
   );
 };

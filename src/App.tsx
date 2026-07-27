@@ -11,6 +11,7 @@ import { SalesCapability } from './components/SalesCapability';
 import { InventoryCapability } from './components/InventoryCapability';
 import { FinanceCapability } from './components/FinanceCapability';
 import { CrmCapability } from './components/CrmCapability';
+import { ProductCapability } from './components/ProductCapability';
 import { AiIntelligenceCenter } from './components/AiIntelligenceCenter';
 import { CapabilityRegistry } from './components/CapabilityRegistry';
 import { EventBusVisualizer } from './components/EventBusVisualizer';
@@ -162,6 +163,13 @@ function AppContent() {
               capabilities={capabilities}
               onNavigate={setActiveTab}
               onQuickAiAsk={() => setIsAiModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'products' && (
+            <ProductCapability
+              tenant={currentTenant}
+              onEmitEvent={handleEmitEvent}
             />
           )}
 

@@ -34,6 +34,7 @@ export const translations = {
 
     // Navigation Tabs
     tabDashboard: 'Dashboard Eksekutif',
+    tabProducts: 'Katalog Produk Master',
     tabSales: 'Penjualan & Kasir',
     tabInventory: 'Inventaris & Stok',
     tabFinance: 'Keuangan & Akuntansi',
@@ -146,6 +147,7 @@ export const translations = {
 
     // Navigation Tabs
     tabDashboard: 'Executive Dashboard',
+    tabProducts: 'Product Foundation',
     tabSales: 'Sales & Commerce',
     tabInventory: 'Inventory & Stock',
     tabFinance: 'Finance & Ledger',

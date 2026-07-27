@@ -96,14 +96,21 @@ export interface LedgerEntry {
 
 export interface CRMContact {
   id: string;
+  customerCode?: string;
   name: string;
   company: string;
   email: string;
   phone: string;
+  address?: string;
   stage: 'Lead' | 'Contacted' | 'Proposal Sent' | 'Negotiation' | 'Customer' | 'Churned';
+  status?: 'Active' | 'Inactive';
   dealValue: number;
   lastInteraction: string;
   notes: string;
+  organizationId?: string;
+  isDeleted?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ArchitectureLayer {

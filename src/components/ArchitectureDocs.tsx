@@ -139,6 +139,7 @@ export const ArchitectureDocs: React.FC = () => {
           {[
             { id: '00_SYSTEM', title: 'System Architecture', role: 'Core Platform Spec', desc: 'Defines system capabilities, event bus, and multi-tenant domain boundaries.' },
             { id: 'EXEC-001', title: 'Execution 001 Foundation', role: 'Project Initialization Base', desc: 'Establishes clean scalable directory structure, layout architecture, global providers & error boundaries.' },
+            { id: 'EXEC-005', title: 'Execution 005 Customer CRUD', role: 'Repository-Aware Enterprise CRM', desc: 'Implements Customer Repository, Service Layer, Zod Validation, Soft Delete & Multi-Tenant RLS isolation.' },
             { id: '01A_PRINCIPLES', title: 'Engineering Principles', role: 'Golden Rule & Mindset', desc: 'Design for future expansion without overengineering. Quality over speed.' },
             { id: '02_ARCHITECT', title: 'Software Architect', role: 'Principal Architect', desc: 'Clean architecture, domain isolation, event contracts, and SOLID principles.' },
             { id: '03_PRODUCT', title: 'Product Manager', role: 'Senior Product Manager', desc: 'Business workflows, user impact, acceptance criteria, and feature scopes.' },

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  Package,
   ShoppingCart,
   Boxes,
   Landmark,
@@ -15,6 +16,7 @@ import { TranslationKey } from '../i18n/translations';
 
 export type TabType =
   | 'dashboard'
+  | 'products'
   | 'sales'
   | 'inventory'
   | 'finance'
@@ -34,6 +36,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }
 
   const tabs: { id: TabType; translationKey: TranslationKey; icon: React.ComponentType<{ className?: string }>; badge?: string }[] = [
     { id: 'dashboard', translationKey: 'tabDashboard', icon: LayoutDashboard },
+    { id: 'products', translationKey: 'tabProducts', icon: Package },
     { id: 'sales', translationKey: 'tabSales', icon: ShoppingCart },
     { id: 'inventory', translationKey: 'tabInventory', icon: Boxes },
     { id: 'finance', translationKey: 'tabFinance', icon: Landmark },

@@ -1,0 +1,6 @@
+{
+  "name": "Project Phoenix - AI Business OS",
+  "description": "An AI-Native Business Operating System platform built on event-driven modular capabilities, multi-tenant context, and server-side intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
